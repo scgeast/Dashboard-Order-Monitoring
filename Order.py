@@ -60,38 +60,42 @@ def process_uploaded_file(uploaded_file):
 with st.sidebar:
     st.title("📊 Filter Dashboard")
     
-    # Upload File
-    uploaded_file = st.file_uploader(
-        "Upload File Data (CSV atau Excel)",
-        type=['csv', 'xlsx', 'xls'],
-        help="Upload file data order Anda"
-    )
-    
-    if uploaded_file is not None:
-        # Process uploaded file
-        df = process_uploaded_file(uploaded_file)
+  # Fungsi untuk memproses data yang diupload
+@st.cache_data
+def process_uploaded_file(uploaded_file):
+    try:
+        # Baca file yang diupload
+        if uploaded_file.name.endswith('.csv'):
+            # Coba baca dengan header di row 1, skip row 0
+            df = pd.read_csv(uploaded_file, header=1)
+        elif uploaded_file.name.endswith(('.xlsx', '.xls')):
+            try:
+                # Coba baca dengan header di row 1, skip row 0
+                df = pd.read_excel(uploaded_file, engine='openpyxl', header=1)
+            except ImportError:
+                st.error("Library openpyxl tidak terinstall. Silakan install dengan: pip install openpyxl")
+                return None
+        else:
+            st.error("Format file tidak didukung. Silakan upload file CSV atau Excel.")
+            return None
         
-        if df is not None:
-            # Temukan kolom dengan smart detection
-            create_date_col = find_column(df, ['CreateDate', 'Create Date', 'TanggalBuat', 'Tanggal Buat'])
-            delivery_date_col = find_column(df, ['Delivery Date', 'DeliveryDate', 'TanggalKirim', 'Tanggal Kirim'])
-            plant_name_col = find_column(df, ['Plant Name', 'PlantName', 'NamaPlant', 'Nama Plant'])
-            status_col = find_column(df, ['Status', 'OrderStatus', 'StatusOrder'])
-            payment_type_col = find_column(df, ['Payment Type', 'PaymentType', 'TipePembayaran', 'Tipe Pembayaran'])
-            order_qty_col = find_column(df, ['Order Qty', 'OrderQty', 'Quantity', 'Qty'])
-            order_id_col = find_column(df, ['Order ID', 'OrderID', 'IDOrder', 'Order No'])
-            
-            # Tampilkan mapping kolom yang terdeteksi
-            st.info("🔍 Kolom yang terdeteksi:")
-            col_mapping = {
-                'Create Date': create_date_col,
-                'Delivery Date': delivery_date_col,
-                'Plant Name': plant_name_col,
-                'Status': status_col,
-                'Payment Type': payment_type_col,
-                'Order Qty': order_qty_col,
-                'Order ID': order_id_col
-            }
+        # Bersihkan nama kolom (remove extra spaces, lowercase, etc.)
+        df.columns = [str(col).strip() for col in df.columns]
+        
+        # Hapus kolom yang seluruhnya kosong
+        df = df.dropna(axis=1, how='all')
+        
+        # Hapus baris yang seluruhnya kosong
+        df = df.dropna(how='all')
+        
+        # Reset index
+        df = df.reset_index(drop=True)
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"Error processing file: {str(e)}")
+        return None
             
             for display_name, actual_col in col_mapping.items():
                 if actual_col:

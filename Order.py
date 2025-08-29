@@ -3,203 +3,212 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
-import io
-import re
+import numpy as np
 
 # Konfigurasi halaman
 st.set_page_config(
-    page_title="Order & Delivery Dashboard",
-    page_icon="📊",
+    page_title="SCG Order Monitoring - Futuristic",
+    page_icon="🚚",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Fungsi untuk menemukan kolom dengan case-insensitive dan spasi-insensitive
-def find_column(df, target_names):
-    """
-    Mencari kolom dalam dataframe berdasarkan nama target
-    yang case-insensitive dan spasi-insensitive
-    """
-    target_names = [str(name).lower().replace(' ', '').replace('_', '') for name in target_names]
-    
-    for col in df.columns:
-        normalized_col = str(col).lower().replace(' ', '').replace('_', '')
-        for target in target_names:
-            if normalized_col == target:
-                return col
-    return None
+# CSS untuk styling futuristik
+st.markdown("""
+<style>
+    .main {
+        background-color: #0E1117;
+        color: #FFFFFF;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        margin: 10px;
+    }
+    .metric-value {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #FFFFFF;
+        margin: 0;
+    }
+    .metric-label {
+        font-size: 1em;
+        color: rgba(255, 255, 255, 0.8);
+        margin: 0;
+    }
+    .section-header {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #00FF88;
+        margin-bottom: 15px;
+        border-left: 4px solid #00FF88;
+        padding-left: 10px;
+    }
+    .stPlotlyChart {
+        border-radius: 15px;
+        background-color: #1E2130;
+        padding: 15px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Fungsi untuk menganalisis file dan menemukan header yang benar
-def analyze_file_structure(uploaded_file):
-    try:
-        # Baca semua data tanpa header untuk inspeksi
-        if uploaded_file.name.endswith('.csv'):
-            raw_df = pd.read_csv(uploaded_file, header=None)
-        elif uploaded_file.name.endswith(('.xlsx', '.xls')):
-            raw_df = pd.read_excel(uploaded_file, engine='openpyxl', header=None)
-        else:
-            return None, "Format file tidak didukung"
-        
-        # Cari baris yang mengandung nama kolom yang kita cari
-        target_keywords = ['delivery', 'plant', 'order', 'status', 'date', 'qty', 'payment']
-        best_header_row = 0
-        best_match_score = 0
-        
-        for i in range(min(10, len(raw_df))):  # Cek 10 baris pertama
-            row_values = [str(val).lower() for val in raw_df.iloc[i].values]
-            match_score = sum(1 for keyword in target_keywords if any(keyword in str(val) for val in row_values))
-            
-            if match_score > best_match_score:
-                best_match_score = match_score
-                best_header_row = i
-        
-        return raw_df, best_header_row
-        
-    except Exception as e:
-        return None, f"Error analyzing file: {str(e)}"
+# Fungsi untuk membuat metric card yang futuristik
+def create_metric_card(label, value, background_color="#667eea"):
+    return f"""
+    <div class="metric-card" style="background: {background_color};">
+        <p class="metric-value">{value}</p>
+        <p class="metric-label">{label}</p>
+    </div>
+    """
 
-# Fungsi untuk memproses data yang diupload
+# Fungsi untuk memproses data
 @st.cache_data
-def process_uploaded_file(uploaded_file, header_row=1):
+def process_uploaded_file(uploaded_file):
     try:
-        # Baca file yang diupload dengan header row tertentu
         if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file, header=header_row)
+            df = pd.read_csv(uploaded_file)
         elif uploaded_file.name.endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(uploaded_file, engine='openpyxl', header=header_row)
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
         else:
-            st.error("Format file tidak didukung. Silakan upload file CSV atau Excel.")
             return None
         
-        # Bersihkan nama kolom
+        # Bersihkan data
         df.columns = [str(col).strip() for col in df.columns]
-        
-        # Hapus kolom yang seluruhnya kosong
         df = df.dropna(axis=1, how='all')
-        
-        # Hapus baris yang seluruhnya kosong
         df = df.dropna(how='all')
         
-        # Reset index
-        df = df.reset_index(drop=True)
-        
         return df
-        
-    except Exception as e:
-        st.error(f"Error processing file: {str(e)}")
+    except:
         return None
 
-# Sidebar dengan filter dan upload
+# Sidebar
 with st.sidebar:
-    st.title("📊 Filter Dashboard")
+    st.title("🚀 SCG Order Monitoring")
+    st.markdown("---")
     
-    # Upload File
-    uploaded_file = st.file_uploader(
-        "Upload File Data (CSV atau Excel)",
-        type=['csv', 'xlsx', 'xls'],
-        help="Upload file data order Anda"
-    )
+    uploaded_file = st.file_uploader("Upload Data File", type=['csv', 'xlsx'])
     
-    if uploaded_file is not None:
-        # Analisis struktur file
-        raw_df, header_row = analyze_file_structure(uploaded_file)
-        
-        if raw_df is not None:
-            st.info(f"📋 File terdeteksi memiliki {len(raw_df)} baris")
-            st.info(f"🔍 Header terdeteksi di baris: {header_row}")
+    if uploaded_file:
+        df = process_uploaded_file(uploaded_file)
+        if df is not None:
+            st.success("✅ Data loaded successfully!")
             
-            # Tampilkan preview data mentah
-            st.write("**Preview Data Mentah (5 baris pertama):**")
-            st.dataframe(raw_df.head(5))
-            
-            # Pilihan manual header row
-            selected_header_row = st.slider(
-                "Pilih baris mana yang menjadi header:",
-                min_value=0,
-                max_value=min(10, len(raw_df)-1),
-                value=header_row
-            )
-            
-            # Process uploaded file dengan header row yang dipilih
-            df = process_uploaded_file(uploaded_file, selected_header_row)
-            
-            if df is not None:
-                # Tampilkan info kolom
-                st.write("**Kolom yang tersedia:**")
-                for i, col in enumerate(df.columns):
-                    st.write(f"{i}. `{col}`")
-                
-                # Manual column mapping
-                st.write("**🔧 Manual Column Mapping:**")
-                
-                col_mapping = {}
-                column_types = {
-                    'Delivery Date': ['delivery', 'date', 'tanggal', 'kirim'],
-                    'Plant Name': ['plant', 'nama plant', 'lokasi'],
-                    'Order Qty': ['order', 'qty', 'quantity', 'jumlah'],
-                    'Status': ['status', 'orderstatus'],
-                    'Payment Type': ['payment', 'type', 'pembayaran'],
-                    'Order ID': ['order', 'id', 'no order']
-                }
-                
-                for col_type, keywords in column_types.items():
-                    options = [f"Tidak digunakan"] + [f"{col} ({i})" for i, col in enumerate(df.columns)]
-                    selected = st.selectbox(
-                        f"Pilih kolom untuk {col_type}",
-                        options=options,
-                        key=f"map_{col_type}"
+            # Date filters
+            if 'Delivery Date' in df.columns:
+                delivery_dates = pd.to_datetime(df['Delivery Date'], errors='coerce').dropna()
+                if not delivery_dates.empty:
+                    min_date = delivery_dates.min()
+                    max_date = delivery_dates.max()
+                    date_range = st.date_input(
+                        "Delivery Date Range",
+                        [min_date, max_date],
+                        min_value=min_date,
+                        max_value=max_date
                     )
-                    if selected != "Tidak digunakan":
-                        col_index = int(selected.split("(")[-1].replace(")", ""))
-                        col_mapping[col_type] = df.columns[col_index]
-                
-                # Simpan mapping ke session state
-                st.session_state.col_mapping = col_mapping
-                
-                # Lanjutkan dengan filter lainnya...
-                # ... [kode filter lainnya tetap sama]
 
-# Main content
-st.title("📦 Order & Delivery Monitoring Dashboard")
+# Main Content
+st.title("📊 DAILY DELIVERY MONITORING")
+st.markdown("---")
 
-if uploaded_file is not None and 'col_mapping' in st.session_state and st.session_state.col_mapping:
-    col_mapping = st.session_state.col_mapping
+# Display metrics in a futuristic way
+if 'df' in locals() and df is not None:
+    # Calculate metrics
+    total_orders = len(df)
+    total_volume = df['Order Qty'].sum() if 'Order Qty' in df.columns else total_orders
+    delivered_volume = df[df['Status'] == 'Delivered']['Order Qty'].sum() if all(col in df.columns for col in ['Status', 'Order Qty']) else 0
+    pending_orders = len(df[df['Status'] == 'Pending']) if 'Status' in df.columns else 0
     
-    # Tampilkan summary cards
+    # Metrics Row
     col1, col2, col3, col4 = st.columns(4)
+    
     with col1:
-        st.metric("Total Orders", len(df))
+        st.markdown(create_metric_card("TOTAL ORDERS", total_orders, "#FF6B6B"), unsafe_allow_html=True)
     
     with col2:
-        if 'Order Qty' in col_mapping:
-            total_qty = df[col_mapping['Order Qty']].sum()
-            st.metric("Total Order Qty", int(total_qty))
-        else:
-            st.metric("Total Orders", len(df))
+        st.markdown(create_metric_card("VOLUME ORDER", f"{total_volume:.0f}", "#4ECDC4"), unsafe_allow_html=True)
     
     with col3:
-        if 'Payment Type' in col_mapping:
-            cash_count = len(df[df[col_mapping['Payment Type']].astype(str).str.contains('Cash', case=False, na=False)])
-            credit_count = len(df[df[col_mapping['Payment Type']].astype(str).str.contains('Credit', case=False, na=False)])
-            st.metric("Cash vs Credit", f"{cash_count}:{credit_count}")
+        st.markdown(create_metric_card("VOL DELIVERED", f"{delivered_volume:.0f}", "#45B7D1"), unsafe_allow_html=True)
     
     with col4:
-        st.metric("Data Points", len(df))
+        st.markdown(create_metric_card("PENDING ORDERS", pending_orders, "#F9A826"), unsafe_allow_html=True)
+
+    # Charts Row
+    col1, col2 = st.columns(2)
     
-    # Tampilkan tabel data
-    st.subheader("Detail Data")
-    st.dataframe(df)
+    with col1:
+        st.markdown('<div class="section-header">STATUS ORDER(M3)</div>', unsafe_allow_html=True)
+        if 'Status' in df.columns:
+            status_counts = df['Status'].value_counts()
+            fig1 = px.pie(
+                values=status_counts.values,
+                names=status_counts.index,
+                hole=0.4,
+                color_discrete_sequence=px.colors.sequential.Plasma
+            )
+            fig1.update_traces(textinfo='percent+label')
+            fig1.update_layout(showlegend=False, height=300)
+            st.plotly_chart(fig1, use_container_width=True)
     
-    # Download button
-    csv = df.to_csv(index=False)
-    st.download_button(
-        label="Download Data as CSV",
-        data=csv,
-        file_name="orders_data.csv",
-        mime="text/csv"
-    )
+    with col2:
+        st.markdown('<div class="section-header">VOLUME ORDER vs DELIVERED</div>', unsafe_allow_html=True)
+        fig2 = go.Figure()
+        fig2.add_trace(go.Bar(
+            name='Volume Order',
+            x=['Total'],
+            y=[total_volume],
+            marker_color='#4ECDC4'
+        ))
+        fig2.add_trace(go.Bar(
+            name='Volume Delivered',
+            x=['Total'],
+            y=[delivered_volume],
+            marker_color='#45B7D1'
+        ))
+        fig2.update_layout(barmode='group', height=300, showlegend=True)
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # Plant Performance
+    st.markdown('<div class="section-header">DELIVERY PERFORMANCE BY PLANT(M3)</div>', unsafe_allow_html=True)
+    if 'Plant Name' in df.columns and 'Order Qty' in df.columns:
+        plant_performance = df.groupby('Plant Name')['Order Qty'].sum().reset_index()
+        fig3 = px.bar(
+            plant_performance,
+            x='Plant Name',
+            y='Order Qty',
+            color='Plant Name',
+            color_discrete_sequence=px.colors.qualitative.Set3
+        )
+        fig3.update_layout(height=400)
+        st.plotly_chart(fig3, use_container_width=True)
+
+    # Data Table
+    st.markdown('<div class="section-header">DETAIL DATA</div>', unsafe_allow_html=True)
+    st.dataframe(df, use_container_width=True)
 
 else:
-    st.info("📤 Silakan upload file data melalui sidebar di sebelah kiri untuk memulai analisis.")
-    st.info("🔧 Setelah upload, Anda perlu melakukan manual mapping kolom di sidebar")
+    # Placeholder sebelum data diupload
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown(create_metric_card("TOTAL ORDERS", "0", "#FF6B6B"), unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(create_metric_card("VOLUME ORDER", "0", "#4ECDC4"), unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(create_metric_card("VOL DELIVERED", "0", "#45B7D1"), unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(create_metric_card("PENDING ORDERS", "0", "#F9A826"), unsafe_allow_html=True)
+    
+    st.info("📤 Please upload a data file to get started")
+
+# Footer
+st.markdown("---")
+st.markdown("<div style='text-align: center; color: #666;'>SCG Order Monitoring System • Real-time Dashboard</div>", unsafe_allow_html=True)

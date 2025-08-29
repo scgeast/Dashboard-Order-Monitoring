@@ -7,13 +7,13 @@ import numpy as np
 
 # Konfigurasi halaman
 st.set_page_config(
-    page_title="SCG Daily Delivery Monitoring",
-    page_icon="🚚",
+    page_title="Order & Delivery Monitoring Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# CSS untuk styling futuristik
+# CSS untuk styling
 st.markdown("""
 <style>
     .main {
@@ -22,46 +22,42 @@ st.markdown("""
     }
     .metric-card {
         background: linear-gradient(135deg, #1E3A8A 0%, #0369A1 100%);
-        padding: 25px;
-        border-radius: 20px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         text-align: center;
-        margin: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin: 5px;
     }
     .metric-value {
-        font-size: 2.8em;
+        font-size: 2.2em;
         font-weight: bold;
         color: #FFFFFF;
         margin: 0;
-        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     }
     .metric-label {
-        font-size: 1.1em;
-        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.9em;
+        color: rgba(255, 255, 255, 0.8);
         margin: 5px 0 0 0;
-        font-weight: 500;
     }
     .section-header {
-        font-size: 1.6em;
+        font-size: 1.4em;
         font-weight: bold;
         color: #00FF88;
-        margin: 25px 0 15px 0;
-        padding: 10px 0;
+        margin: 20px 0 10px 0;
+        padding: 8px 0;
         border-bottom: 2px solid #00FF88;
     }
     .stPlotlyChart {
-        border-radius: 20px;
+        border-radius: 15px;
         background: linear-gradient(135deg, #1E2130 0%, #2D3250 100%);
-        padding: 20px;
+        padding: 15px;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
     }
     .sidebar .sidebar-content {
         background: linear-gradient(180deg, #1E3A8A 0%, #0F172A 100%);
     }
     .stDataFrame {
-        border-radius: 15px;
+        border-radius: 10px;
         background: linear-gradient(135deg, #1E2130 0%, #2D3250 100%);
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
@@ -69,14 +65,14 @@ st.markdown("""
         background: linear-gradient(135deg, #00FF88 0%, #00CC66 100%);
         color: #000;
         border: none;
-        border-radius: 10px;
-        padding: 10px 20px;
+        border-radius: 8px;
+        padding: 8px 16px;
         font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Fungsi untuk membuat metric card futuristik
+# Fungsi untuk membuat metric card
 def create_metric_card(label, value, background="linear-gradient(135deg, #1E3A8A 0%, #0369A1 100%)"):
     return f"""
     <div class="metric-card" style="background: {background};">
@@ -87,12 +83,12 @@ def create_metric_card(label, value, background="linear-gradient(135deg, #1E3A8A
 
 # Fungsi untuk memproses data
 @st.cache_data
-def process_uploaded_file(uploaded_file):
+def process_uploaded_file(uploaded_file, header_row=0):
     try:
         if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
+            df = pd.read_csv(uploaded_file, header=header_row)
         elif uploaded_file.name.endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(uploaded_file, engine='openpyxl')
+            df = pd.read_excel(uploaded_file, engine='openpyxl', header=header_row)
         else:
             return None
         
@@ -106,189 +102,316 @@ def process_uploaded_file(uploaded_file):
         st.error(f"Error processing file: {str(e)}")
         return None
 
+# Fungsi untuk menemukan kolom
+def find_column(df, target_names):
+    target_names = [str(name).lower().replace(' ', '').replace('_', '') for name in target_names]
+    
+    for col in df.columns:
+        normalized_col = str(col).lower().replace(' ', '').replace('_', '')
+        for target in target_names:
+            if normalized_col == target:
+                return col
+    return None
+
+# Initialize session state
+if 'df' not in st.session_state:
+    st.session_state.df = None
+if 'col_mapping' not in st.session_state:
+    st.session_state.col_mapping = {}
+
 # Sidebar
 with st.sidebar:
     st.markdown("""
-    <div style='text-align: center; padding: 20px 0;'>
-        <h1 style='color: #00FF88; margin: 0;'>🚀 SCG</h1>
-        <p style='color: #FFFFFF; margin: 0;'>Delivery Monitoring</p>
+    <div style='text-align: center; padding: 15px 0;'>
+        <h2 style='color: #00FF88; margin: 0;'>📊 FILTERS</h2>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
     
+    # Upload File
     uploaded_file = st.file_uploader("📤 Upload Data File", type=['csv', 'xlsx', 'xls'])
     
     if uploaded_file:
         df = process_uploaded_file(uploaded_file)
         if df is not None:
-            st.success("✅ Data loaded successfully!")
             st.session_state.df = df
+            st.success("✅ Data loaded successfully!")
+            
+            # Auto-detect columns
+            col_mapping = {
+                'CreateDate': find_column(df, ['CreateDate', 'Create Date', 'TanggalBuat']),
+                'DeliveryDate': find_column(df, ['Delivery Date', 'DeliveryDate', 'TanggalKirim']),
+                'PlantName': find_column(df, ['Plant Name', 'PlantName', 'NamaPlant']),
+                'Status': find_column(df, ['Status', 'OrderStatus']),
+                'PaymentType': find_column(df, ['Payment Type', 'PaymentType', 'TipePembayaran']),
+                'OrderQty': find_column(df, ['Order Qty', 'OrderQty', 'Quantity']),
+                'OrderID': find_column(df, ['Order ID', 'OrderID']),
+                'SiteNo': find_column(df, ['Site No', 'SiteNo']),
+                'SiteName': find_column(df, ['Site Name', 'SiteName'])
+            }
+            st.session_state.col_mapping = col_mapping
+            
+            # Display detected columns
+            st.info("🔍 Detected Columns:")
+            for display_name, actual_col in col_mapping.items():
+                if actual_col:
+                    st.write(f"• {display_name}: `{actual_col}`")
+            
+            st.markdown("---")
+            
+            # Filters
+            if col_mapping['CreateDate']:
+                create_dates = pd.to_datetime(df[col_mapping['CreateDate']], errors='coerce').dropna()
+                if not create_dates.empty:
+                    min_date = create_dates.min()
+                    max_date = create_dates.max()
+                    create_date_range = st.date_input(
+                        "📅 Create Date Range",
+                        [min_date, max_date],
+                        min_value=min_date,
+                        max_value=max_date
+                    )
+            
+            if col_mapping['DeliveryDate']:
+                delivery_dates = pd.to_datetime(df[col_mapping['DeliveryDate']], errors='coerce').dropna()
+                if not delivery_dates.empty:
+                    min_date = delivery_dates.min()
+                    max_date = delivery_dates.max()
+                    delivery_date_range = st.date_input(
+                        "🚚 Delivery Date Range",
+                        [min_date, max_date],
+                        min_value=min_date,
+                        max_value=max_date
+                    )
+            
+            if col_mapping['PlantName']:
+                plant_options = df[col_mapping['PlantName']].unique()
+                selected_plants = st.multiselect(
+                    "🏭 Plant Name",
+                    options=plant_options,
+                    default=plant_options
+                )
+            
+            if col_mapping['Status']:
+                status_options = df[col_mapping['Status']].unique()
+                selected_status = st.multiselect(
+                    "📋 Status",
+                    options=status_options,
+                    default=status_options
+                )
+            
+            if col_mapping['PaymentType']:
+                payment_options = df[col_mapping['PaymentType']].unique()
+                selected_payment = st.multiselect(
+                    "💳 Payment Type",
+                    options=payment_options,
+                    default=payment_options
+                )
+            
+            # Store filter values in session state
+            st.session_state.filters = {
+                'create_date_range': create_date_range if 'create_date_range' in locals() else None,
+                'delivery_date_range': delivery_date_range if 'delivery_date_range' in locals() else None,
+                'selected_plants': selected_plants if 'selected_plants' in locals() else None,
+                'selected_status': selected_status if 'selected_status' in locals() else None,
+                'selected_payment': selected_payment if 'selected_payment' in locals() else None
+            }
 
 # Main Content
-st.markdown("""
-<div style='text-align: center; padding: 20px 0;'>
-    <h1 style='color: #00FF88; font-size: 2.5em; margin: 0;'>📊 DAILY DELIVERY MONITORING</h1>
-    <p style='color: #FFFFFF; margin: 0;'>Real-time Order Tracking System</p>
-</div>
-""", unsafe_allow_html=True)
+col1, col2 = st.columns([0.97, 0.03])
+with col1:
+    st.markdown("""
+    <div style='text-align: center; padding: 15px 0;'>
+        <h1 style='color: #00FF88; font-size: 2.2em; margin: 0;'>📊 Order & Delivery Monitoring Dashboard</h1>
+    </div>
+    """, unsafe_allow_html=True)
+with col2:
+    if st.button("☰"):
+        st.session_state.sidebar_expanded = not st.session_state.get('sidebar_expanded', True)
 
 st.markdown("---")
 
-# Display metrics
-if 'df' in st.session_state and st.session_state.df is not None:
+# Display data and visualizations
+if st.session_state.df is not None and st.session_state.col_mapping:
     df = st.session_state.df
+    col_mapping = st.session_state.col_mapping
+    filters = st.session_state.get('filters', {})
     
-    # Calculate metrics - dengan error handling
-    total_orders = len(df)
+    # Apply filters
+    filtered_df = df.copy()
     
-    # Volume calculations dengan error handling
-    if 'Order Qty' in df.columns:
-        total_volume = df['Order Qty'].sum()
+    if filters.get('create_date_range') and col_mapping['CreateDate']:
+        mask = pd.to_datetime(filtered_df[col_mapping['CreateDate']], errors='coerce').between(
+            pd.to_datetime(filters['create_date_range'][0]),
+            pd.to_datetime(filters['create_date_range'][1])
+        )
+        filtered_df = filtered_df[mask]
+    
+    if filters.get('delivery_date_range') and col_mapping['DeliveryDate']:
+        mask = pd.to_datetime(filtered_df[col_mapping['DeliveryDate']], errors='coerce').between(
+            pd.to_datetime(filters['delivery_date_range'][0]),
+            pd.to_datetime(filters['delivery_date_range'][1])
+        )
+        filtered_df = filtered_df[mask]
+    
+    if filters.get('selected_plants') and col_mapping['PlantName']:
+        filtered_df = filtered_df[filtered_df[col_mapping['PlantName']].isin(filters['selected_plants'])]
+    
+    if filters.get('selected_status') and col_mapping['Status']:
+        filtered_df = filtered_df[filtered_df[col_mapping['Status']].isin(filters['selected_status'])]
+    
+    if filters.get('selected_payment') and col_mapping['PaymentType']:
+        filtered_df = filtered_df[filtered_df[col_mapping['PaymentType']].isin(filters['selected_payment'])]
+    
+    # Calculate metrics
+    total_orders = len(filtered_df)
+    
+    if col_mapping['OrderQty']:
+        total_qty = filtered_df[col_mapping['OrderQty']].sum()
     else:
-        total_volume = total_orders  # Fallback jika kolom tidak ada
+        total_qty = total_orders
     
-    # Delivered volume
-    if all(col in df.columns for col in ['Status', 'Order Qty']):
-        delivered_volume = df[df['Status'].str.contains('Delivered', case=False, na=False)]['Order Qty'].sum()
+    if col_mapping['PaymentType']:
+        cash_count = len(filtered_df[filtered_df[col_mapping['PaymentType']].astype(str).str.contains('Cash', case=False, na=False)])
+        credit_count = len(filtered_df[filtered_df[col_mapping['PaymentType']].astype(str).str.contains('Credit', case=False, na=False)])
+        cash_ratio = f"{cash_count}/{credit_count}"
     else:
-        delivered_volume = 0
+        cash_ratio = "N/A"
     
-    # Pending orders
-    if 'Status' in df.columns:
-        pending_orders = len(df[df['Status'].str.contains('Pending', case=False, na=False)])
-    else:
-        pending_orders = 0
-    
-    # Canceled volume
-    if all(col in df.columns for col in ['Status', 'Order Qty']):
-        canceled_volume = df[df['Status'].str.contains('Cancel', case=False, na=False)]['Order Qty'].sum()
-    else:
-        canceled_volume = 0
-    
-    # Remaining volume
-    remaining_volume = total_volume - delivered_volume - canceled_volume
-
-    # Metrics Row 1
+    # Summary Cards
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown(create_metric_card("TOTAL ORDERS", total_orders, "linear-gradient(135deg, #FF6B6B 0%, #C53030 100%)"), unsafe_allow_html=True)
     
     with col2:
-        st.markdown(create_metric_card("VOLUME ORDER", f"{total_volume:.0f}", "linear-gradient(135deg, #4ECDC4 0%, #2C7A7B 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("TOTAL ORDER QTY", f"{total_qty:.0f}", "linear-gradient(135deg, #4ECDC4 0%, #2C7A7B 100%)"), unsafe_allow_html=True)
     
     with col3:
-        st.markdown(create_metric_card("VOL DELIVERED", f"{delivered_volume:.0f}", "linear-gradient(135deg, #45B7D1 0%, #2B6CB0 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("CASH vs CREDIT", cash_ratio, "linear-gradient(135deg, #45B7D1 0%, #2B6CB0 100%)"), unsafe_allow_html=True)
     
     with col4:
-        st.markdown(create_metric_card("VOLUME CANCEL", f"{canceled_volume:.0f}", "linear-gradient(135deg, #F9A826 0%, #D69E2E 100%)"), unsafe_allow_html=True)
-
-    # Metrics Row 2
-    col1, col2, col3, col4 = st.columns(4)
+        if col_mapping['Status']:
+            status_counts = filtered_df[col_mapping['Status']].value_counts()
+            status_summary = ", ".join([f"{k}: {v}" for k, v in status_counts.items()][:3])
+            if len(status_counts) > 3:
+                status_summary += "..."
+        else:
+            status_summary = "N/A"
+        st.markdown(create_metric_card("ORDERS BY STATUS", status_summary, "linear-gradient(135deg, #F9A826 0%, #D69E2E 100%)"), unsafe_allow_html=True)
     
-    with col1:
-        st.markdown(create_metric_card("VOLUME REMAINING", f"{remaining_volume:.0f}", "linear-gradient(135deg, #A3BFFA 0%, #667EEA 100%)"), unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(create_metric_card("PENDING ORDERS", pending_orders, "linear-gradient(135deg, #F687B3 0%, #D53F8C 100%)"), unsafe_allow_html=True)
-    
-    with col3:
-        delivery_ratio = (delivered_volume / total_volume * 100) if total_volume > 0 else 0
-        st.markdown(create_metric_card("DELIVERY RATIO", f"{delivery_ratio:.1f}%", "linear-gradient(135deg, #68D391 0%, #38A169 100%)"), unsafe_allow_html=True)
-    
-    with col4:
-        avg_order_size = (total_volume / total_orders) if total_orders > 0 else 0
-        st.markdown(create_metric_card("AVG ORDER SIZE", f"{avg_order_size:.1f}", "linear-gradient(135deg, #FBBF24 0%, #D97706 100%)"), unsafe_allow_html=True)
-
-    # Charts Section
-    st.markdown('<div class="section-header">📈 PERFORMANCE DASHBOARD</div>', unsafe_allow_html=True)
+    # Charts
+    st.markdown('<div class="section-header">📈 CHARTS & VISUALIZATIONS</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        # Status Order Chart
-        st.markdown('<div style="color: #00FF88; font-size: 1.3em; margin-bottom: 15px;">🔄 STATUS ORDER (M3)</div>', unsafe_allow_html=True)
-        if 'Status' in df.columns:
-            status_data = {
-                'DELIVERED': delivered_volume,
-                'PENDING': remaining_volume,
-                'CANCELED': canceled_volume
-            }
-            fig1 = px.pie(
-                values=list(status_data.values()),
-                names=list(status_data.keys()),
-                hole=0.5,
-                color_discrete_sequence=['#00FF88', '#FF6B6B', '#F9A826']
+        # Status Order Bar Chart
+        if col_mapping['Status']:
+            status_counts = filtered_df[col_mapping['Status']].value_counts().reset_index()
+            status_counts.columns = ['Status', 'Count']
+            fig1 = px.bar(
+                status_counts,
+                x='Status',
+                y='Count',
+                title='📊 Orders by Status',
+                color='Status',
+                color_discrete_sequence=px.colors.qualitative.Set3
             )
-            fig1.update_traces(textinfo='percent+label+value')
-            fig1.update_layout(showlegend=True, height=400, paper_bgcolor='rgba(0,0,0,0)')
+            fig1.update_layout(showlegend=False, height=300)
             st.plotly_chart(fig1, use_container_width=True)
     
     with col2:
-        # Volume Comparison Chart
-        st.markdown('<div style="color: #00FF88; font-size: 1.3em; margin-bottom: 15px;">📊 VOLUME ORDER vs DELIVERED</div>', unsafe_allow_html=True)
-        fig2 = go.Figure()
-        fig2.add_trace(go.Bar(
-            name='Volume Order',
-            x=['Total Volume'],
-            y=[total_volume],
-            marker_color='#4ECDC4',
-            width=0.4
-        ))
-        fig2.add_trace(go.Bar(
-            name='Volume Delivered',
-            x=['Total Volume'],
-            y=[delivered_volume],
-            marker_color='#00FF88',
-            width=0.4
-        ))
-        fig2.update_layout(
-            barmode='group', 
-            height=400, 
-            showlegend=True,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig2, use_container_width=True)
-
-    # Plant Performance Section
-    st.markdown('<div class="section-header">🏭 DELIVERY PERFORMANCE BY PLANT (M3)</div>', unsafe_allow_html=True)
+        # Payment Type Pie Chart
+        if col_mapping['PaymentType']:
+            payment_counts = filtered_df[col_mapping['PaymentType']].value_counts().reset_index()
+            payment_counts.columns = ['PaymentType', 'Count']
+            fig2 = px.pie(
+                payment_counts,
+                values='Count',
+                names='PaymentType',
+                title='💳 Payment Type Distribution',
+                hole=0.4,
+                color_discrete_sequence=px.colors.qualitative.Set2
+            )
+            fig2.update_layout(height=300)
+            st.plotly_chart(fig2, use_container_width=True)
     
-    if 'Plant Name' in df.columns and 'Order Qty' in df.columns:
-        plant_performance = df.groupby('Plant Name')['Order Qty'].sum().reset_index()
-        fig3 = px.bar(
-            plant_performance,
-            x='Plant Name',
-            y='Order Qty',
-            color='Plant Name',
-            color_discrete_sequence=px.colors.qualitative.Set3
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Order Trend Line Chart
+        if col_mapping['CreateDate']:
+            try:
+                filtered_df['CreateDate_parsed'] = pd.to_datetime(filtered_df[col_mapping['CreateDate']], errors='coerce')
+                daily_orders = filtered_df.groupby(filtered_df['CreateDate_parsed'].dt.date).size().reset_index()
+                daily_orders.columns = ['Date', 'Orders']
+                fig3 = px.line(
+                    daily_orders,
+                    x='Date',
+                    y='Orders',
+                    title='📈 Daily Order Trend',
+                    markers=True
+                )
+                fig3.update_layout(height=300)
+                st.plotly_chart(fig3, use_container_width=True)
+            except:
+                st.warning("Could not create trend chart")
+    
+    with col2:
+        # Plant Performance Bar Chart
+        if col_mapping['PlantName'] and col_mapping['OrderQty']:
+            plant_performance = filtered_df.groupby(col_mapping['PlantName'])[col_mapping['OrderQty']].sum().reset_index()
+            plant_performance.columns = ['Plant', 'TotalQty']
+            fig4 = px.bar(
+                plant_performance,
+                x='Plant',
+                y='TotalQty',
+                title='🏭 Order Quantity by Plant',
+                color='Plant',
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig4.update_layout(showlegend=False, height=300)
+            st.plotly_chart(fig4, use_container_width=True)
+    
+    # Data Table
+    st.markdown('<div class="section-header">📋 DETAILED ORDER DATA</div>', unsafe_allow_html=True)
+    
+    # Select columns to display
+    display_columns = []
+    for col_key in ['OrderID', 'SiteNo', 'SiteName', 'DeliveryDate', 'PlantName', 'OrderQty', 'Status', 'CreateDate', 'PaymentType']:
+        if col_mapping[col_key]:
+            display_columns.append(col_mapping[col_key])
+    
+    if display_columns:
+        st.dataframe(filtered_df[display_columns], use_container_width=True, height=400)
+        
+        # Download button
+        csv = filtered_df[display_columns].to_csv(index=False)
+        st.download_button(
+            label="📥 Download Filtered Data as CSV",
+            data=csv,
+            file_name="filtered_orders.csv",
+            mime="text/csv"
         )
-        fig3.update_layout(
-            height=500,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-
-    # Data Table Section
-    st.markdown('<div class="section-header">📋 DETAIL ORDER DATA</div>', unsafe_allow_html=True)
-    st.dataframe(df, use_container_width=True, height=400)
+    else:
+        st.warning("No columns available for display")
 
 else:
-    # Placeholder sebelum data diupload
+    # Placeholder before data upload
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown(create_metric_card("TOTAL ORDERS", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
     
     with col2:
-        st.markdown(create_metric_card("VOLUME ORDER", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("TOTAL ORDER QTY", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
     
     with col3:
-        st.markdown(create_metric_card("VOL DELIVERED", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("CASH vs CREDIT", "0/0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
     
     with col4:
-        st.markdown(create_metric_card("PENDING ORDERS", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("ORDERS BY STATUS", "N/A", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
     
     st.info("""
     📤 **Please upload a data file to get started**
@@ -296,18 +419,17 @@ else:
     Supported formats: CSV, Excel (.xlsx, .xls)
     
     Your file should contain columns like:
-    - Order ID
-    - Plant Name  
-    - Order Qty
-    - Status
-    - Delivery Date
+    - Order ID, Site No, Site Name
+    - Delivery Date, Plant Name  
+    - Order Qty, Status
+    - CreateDate, Payment Type
     """)
 
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666; padding: 20px 0;'>
-    <p>🚀 SCG Delivery Monitoring System • Real-time Dashboard • Powered by Streamlit</p>
+<div style='text-align: center; color: #666; padding: 15px 0;'>
+    <p>🚀 Order & Delivery Monitoring System • Real-time Dashboard • Powered by Streamlit</p>
     <p>📅 Last Updated: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
 </div>
 """, unsafe_allow_html=True)

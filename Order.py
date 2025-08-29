@@ -229,22 +229,12 @@ with st.sidebar:
                     if st.button("Clear All", key="clear_all_status"):
                         selected_status = []
             
-            if col_mapping['PaymentType']:
-                payment_options = df[col_mapping['PaymentType']].unique()
-                payment_options = [str(opt) for opt in payment_options if pd.notna(opt)]
-                selected_payment = st.multiselect(
-                    "💳 Payment Type",
-                    options=payment_options,
-                    default=payment_options
-                )
-            
             # Store filter values in session state
             st.session_state.filters = {
                 'create_date_range': create_date_range if 'create_date_range' in locals() else None,
                 'delivery_date_range': delivery_date_range if 'delivery_date_range' in locals() else None,
                 'selected_plants': selected_plants if 'selected_plants' in locals() else None,
-                'selected_status': selected_status if 'selected_status' in locals() else None,
-                'selected_payment': selected_payment if 'selected_payment' in locals() else None
+                'selected_status': selected_status if 'selected_status' in locals() else None
             }
 
 # Main Content
@@ -290,9 +280,6 @@ if st.session_state.df is not None and st.session_state.col_mapping:
     if filters.get('selected_status') and col_mapping['Status']:
         filtered_df = filtered_df[filtered_df[col_mapping['Status']].isin(filters['selected_status'])]
     
-    if filters.get('selected_payment') and col_mapping['PaymentType']:
-        filtered_df = filtered_df[filtered_df[col_mapping['PaymentType']].isin(filters['selected_payment'])]
-    
     # Calculate metrics
     total_orders = len(filtered_df)
     
@@ -301,12 +288,18 @@ if st.session_state.df is not None and st.session_state.col_mapping:
     else:
         total_qty = total_orders
     
-    if col_mapping['PaymentType']:
-        cash_count = len(filtered_df[filtered_df[col_mapping['PaymentType']].astype(str).str.contains('Cash', case=False, na=False)])
-        credit_count = len(filtered_df[filtered_df[col_mapping['PaymentType']].astype(str).str.contains('Credit', case=False, na=False)])
-        cash_ratio = f"{cash_count}/{credit_count}"
+    # Calculate KPI Status
+    if col_mapping['Status']:
+        status_counts = filtered_df[col_mapping['Status']].value_counts()
+        # Get counts for specific statuses
+        pending_count = status_counts.get('Pending', 0) + status_counts.get('Pending Confirmation', 0)
+        on_booking_count = status_counts.get('On Booking', 0)
+        canceled_count = status_counts.get('Canceled', 0) + status_counts.get('Cancelled', 0)
+        delivered_count = status_counts.get('Delivered', 0)
+        
+        status_kpi = f"P:{pending_count} | B:{on_booking_count} | C:{canceled_count} | D:{delivered_count}"
     else:
-        cash_ratio = "N/A"
+        status_kpi = "N/A"
     
     # Calculate Order vs Actual Delivery
     if col_mapping['OrderQty'] and col_mapping['ActualDelivery']:
@@ -319,7 +312,7 @@ if st.session_state.df is not None and st.session_state.col_mapping:
         total_order_qty = 0
         total_actual_delivery = 0
     
-    # Summary Cards (3 kotak saja)
+    # Summary Cards (3 kotak)
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -329,7 +322,7 @@ if st.session_state.df is not None and st.session_state.col_mapping:
         st.markdown(create_metric_card("TOTAL ORDER QTY", f"{total_qty:.0f}", "linear-gradient(135deg, #4ECDC4 0%, #2C7A7B 100%)"), unsafe_allow_html=True)
     
     with col3:
-        st.markdown(create_metric_card("CASH vs CREDIT", cash_ratio, "linear-gradient(135deg, #45B7D1 0%, #2B6CB0 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("STATUS KPI", status_kpi, "linear-gradient(135deg, #45B7D1 0%, #2B6CB0 100%)"), unsafe_allow_html=True)
     
     # Charts
     st.markdown('<div class="section-header">📈 CHARTS & VISUALIZATIONS</div>', unsafe_allow_html=True)
@@ -422,37 +415,53 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                 st.warning("Could not create trend chart")
     
     with col2:
-        # Plant Performance Bar Chart dengan data labels
-        if col_mapping['PlantName'] and col_mapping['OrderQty']:
-            plant_performance = filtered_df.groupby(col_mapping['PlantName'])[col_mapping['OrderQty']].sum().reset_index()
-            plant_performance.columns = ['Plant', 'TotalQty']
+        # Order Qty vs Actual Delivery by Plant (Grouped Bar Chart)
+        if col_mapping['PlantName'] and col_mapping['OrderQty'] and col_mapping['ActualDelivery']:
+            plant_performance = filtered_df.groupby(col_mapping['PlantName']).agg({
+                col_mapping['OrderQty']: 'sum',
+                col_mapping['ActualDelivery']: 'sum'
+            }).reset_index()
+            
+            plant_performance.columns = ['Plant', 'OrderQty', 'ActualDelivery']
+            
+            # Melt data untuk grouped bar chart
+            melted_data = plant_performance.melt(id_vars='Plant', 
+                                                value_vars=['OrderQty', 'ActualDelivery'],
+                                                var_name='Type', 
+                                                value_name='Value')
+            
             fig4 = px.bar(
-                plant_performance,
+                melted_data,
                 x='Plant',
-                y='TotalQty',
-                title='🏭 Order Quantity by Plant',
-                color='Plant',
-                color_discrete_sequence=px.colors.qualitative.Pastel
+                y='Value',
+                color='Type',
+                barmode='group',
+                title='🏭 Order Qty vs Actual Delivery by Plant',
+                color_discrete_map={'OrderQty': '#4ECDC4', 'ActualDelivery': '#00FF88'}
             )
+            
             # Tambahkan data labels
             fig4.update_traces(
                 texttemplate='%{y:,.0f}',
                 textposition='outside',
                 textfont=dict(size=10, color='white')
             )
+            
             fig4.update_layout(
-                showlegend=False, 
                 height=400,
-                xaxis_tickangle=-45
+                xaxis_tickangle=-45,
+                legend_title_text='Type'
             )
             st.plotly_chart(fig4, use_container_width=True)
+        else:
+            st.info("Data for Order Qty vs Actual Delivery by Plant not available")
     
     # Data Table
     st.markdown('<div class="section-header">📋 DETAILED ORDER DATA</div>', unsafe_allow_html=True)
     
     # Select columns to display
     display_columns = []
-    for col_key in ['OrderID', 'SiteNo', 'SiteName', 'DeliveryDate', 'PlantName', 'OrderQty', 'Status', 'CreateDate', 'PaymentType']:
+    for col_key in ['OrderID', 'SiteNo', 'SiteName', 'DeliveryDate', 'PlantName', 'OrderQty', 'ActualDelivery', 'Status', 'CreateDate']:
         if col_mapping[col_key]:
             display_columns.append(col_mapping[col_key])
     
@@ -481,7 +490,7 @@ else:
         st.markdown(create_metric_card("TOTAL ORDER QTY", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
     
     with col3:
-        st.markdown(create_metric_card("CASH vs CREDIT", "0/0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("STATUS KPI", "P:0 | B:0 | C:0 | D:0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
     
     st.info("""
     📤 **Please upload a data file to get started**
@@ -492,7 +501,7 @@ else:
     - Order ID, Site No, Site Name
     - Delivery Date, Plant Name  
     - Order Qty, Actual Delivery, Status
-    - CreateDate, Payment Type
+    - CreateDate
     """)
 
 # Footer

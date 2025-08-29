@@ -13,12 +13,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS untuk styling
+# CSS untuk styling futuristik dengan font digital
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap');
+    
     .main {
         background-color: #0E1117;
         color: #FFFFFF;
+        font-family: 'Orbitron', monospace;
     }
     .metric-card {
         background: linear-gradient(135deg, #1E3A8A 0%, #0369A1 100%);
@@ -27,17 +30,21 @@ st.markdown("""
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         text-align: center;
         margin: 5px;
+        border: 1px solid #00FF88;
     }
     .metric-value {
-        font-size: 2.2em;
+        font-size: 2.5em;
         font-weight: bold;
-        color: #FFFFFF;
+        color: #00FF88;
         margin: 0;
+        font-family: 'Orbitron', monospace;
+        text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
     }
     .metric-label {
-        font-size: 0.9em;
+        font-size: 1em;
         color: rgba(255, 255, 255, 0.8);
         margin: 5px 0 0 0;
+        font-family: 'Orbitron', monospace;
     }
     .section-header {
         font-size: 1.4em;
@@ -46,20 +53,24 @@ st.markdown("""
         margin: 20px 0 10px 0;
         padding: 8px 0;
         border-bottom: 2px solid #00FF88;
+        font-family: 'Orbitron', monospace;
+        text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
     }
     .stPlotlyChart {
         border-radius: 15px;
         background: linear-gradient(135deg, #1E2130 0%, #2D3250 100%);
         padding: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid #00FF88;
+        box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
     }
     .sidebar .sidebar-content {
         background: linear-gradient(180deg, #1E3A8A 0%, #0F172A 100%);
+        font-family: 'Orbitron', monospace;
     }
     .stDataFrame {
         border-radius: 10px;
         background: linear-gradient(135deg, #1E2130 0%, #2D3250 100%);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid #00FF88;
     }
     .stButton>button {
         background: linear-gradient(135deg, #00FF88 0%, #00CC66 100%);
@@ -68,20 +79,32 @@ st.markdown("""
         border-radius: 8px;
         padding: 8px 16px;
         font-weight: bold;
+        font-family: 'Orbitron', monospace;
     }
-    /* Data label styling */
-    .data-label {
-        font-size: 11px;
-        font-weight: bold;
-        fill: #FFFFFF;
+    /* Status KPI Cards */
+    .status-card-pending {
+        background: linear-gradient(135deg, #FF6B6B 0%, #C53030 100%) !important;
+        border: 1px solid #FF4444 !important;
+    }
+    .status-card-booking {
+        background: linear-gradient(135deg, #F9A826 0%, #D69E2E 100%) !important;
+        border: 1px solid #FFB74D !important;
+    }
+    .status-card-cancel {
+        background: linear-gradient(135deg, #A0AEC0 0%, #718096 100%) !important;
+        border: 1px solid #CBD5E0 !important;
+    }
+    .status-card-delivered {
+        background: linear-gradient(135deg, #68D391 0%, #38A169 100%) !important;
+        border: 1px solid #48BB78 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Fungsi untuk membuat metric card
-def create_metric_card(label, value, background="linear-gradient(135deg, #1E3A8A 0%, #0369A1 100%)"):
+def create_metric_card(label, value, background="linear-gradient(135deg, #1E3A8A 0%, #0369A1 100%)", border_color="#00FF88"):
     return f"""
-    <div class="metric-card" style="background: {background};">
+    <div class="metric-card" style="background: {background}; border-color: {border_color}">
         <p class="metric-value">{value}</p>
         <p class="metric-label">{label}</p>
     </div>
@@ -149,7 +172,6 @@ with st.sidebar:
                 'DeliveryDate': find_column(df, ['Delivery Date', 'DeliveryDate', 'TanggalKirim']),
                 'PlantName': find_column(df, ['Plant Name', 'PlantName', 'NamaPlant']),
                 'Status': find_column(df, ['Status', 'OrderStatus']),
-                'PaymentType': find_column(df, ['Payment Type', 'PaymentType', 'TipePembayaran']),
                 'OrderQty': find_column(df, ['Order Qty', 'OrderQty', 'Quantity']),
                 'ActualDelivery': find_column(df, ['Actual Delivery', 'ActualDelivery', 'DeliveredQty']),
                 'OrderID': find_column(df, ['Order ID', 'OrderID']),
@@ -288,41 +310,76 @@ if st.session_state.df is not None and st.session_state.col_mapping:
     else:
         total_qty = total_orders
     
-    # Calculate KPI Status
+    # Calculate Status KPI (4 separate metrics)
     if col_mapping['Status']:
         status_counts = filtered_df[col_mapping['Status']].value_counts()
         # Get counts for specific statuses
         pending_count = status_counts.get('Pending', 0) + status_counts.get('Pending Confirmation', 0)
-        on_booking_count = status_counts.get('On Booking', 0)
-        canceled_count = status_counts.get('Canceled', 0) + status_counts.get('Cancelled', 0)
+        on_booking_count = status_counts.get('On Booking', 0) + status_counts.get('Booking', 0)
+        canceled_count = status_counts.get('Canceled', 0) + status_counts.get('Cancelled', 0) + status_counts.get('Cancel', 0)
         delivered_count = status_counts.get('Delivered', 0)
-        
-        status_kpi = f"P:{pending_count} | B:{on_booking_count} | C:{canceled_count} | D:{delivered_count}"
     else:
-        status_kpi = "N/A"
+        pending_count = on_booking_count = canceled_count = delivered_count = 0
     
     # Calculate Order vs Actual Delivery
     if col_mapping['OrderQty'] and col_mapping['ActualDelivery']:
         total_order_qty = filtered_df[col_mapping['OrderQty']].sum()
         total_actual_delivery = filtered_df[col_mapping['ActualDelivery']].sum()
         delivery_ratio = (total_actual_delivery / total_order_qty * 100) if total_order_qty > 0 else 0
-        delivery_metric = f"{delivery_ratio:.1f}%"
     else:
-        delivery_metric = "N/A"
         total_order_qty = 0
         total_actual_delivery = 0
+        delivery_ratio = 0
     
-    # Summary Cards (3 kotak)
-    col1, col2, col3 = st.columns(3)
+    # Summary Cards - 7 cards total
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown(create_metric_card("TOTAL ORDERS", total_orders, "linear-gradient(135deg, #FF6B6B 0%, #C53030 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("TOTAL ORDERS", total_orders, "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"), unsafe_allow_html=True)
     
     with col2:
-        st.markdown(create_metric_card("TOTAL ORDER QTY", f"{total_qty:.0f}", "linear-gradient(135deg, #4ECDC4 0%, #2C7A7B 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("TOTAL QTY", f"{total_qty:.0f}", "linear-gradient(135deg, #4ECDC4 0%, #2C7A7B 100%)"), unsafe_allow_html=True)
     
     with col3:
-        st.markdown(create_metric_card("STATUS KPI", status_kpi, "linear-gradient(135deg, #45B7D1 0%, #2B6CB0 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("ORDER QTY", f"{total_order_qty:.0f}", "linear-gradient(135deg, #45B7D1 0%, #2B6CB0 100%)"), unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(create_metric_card("ACTUAL DELIVERY", f"{total_actual_delivery:.0f}", "linear-gradient(135deg, #68D391 0%, #38A169 100%)"), unsafe_allow_html=True)
+    
+    # Status KPI Cards - 4 separate cards
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+        <div class="metric-card status-card-pending">
+            <p class="metric-value">""" + str(pending_count) + """</p>
+            <p class="metric-label">PENDING</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="metric-card status-card-booking">
+            <p class="metric-value">""" + str(on_booking_count) + """</p>
+            <p class="metric-label">BOOKING</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="metric-card status-card-cancel">
+            <p class="metric-value">""" + str(canceled_count) + """</p>
+            <p class="metric-label">CANCEL</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div class="metric-card status-card-delivered">
+            <p class="metric-value">""" + str(delivered_count) + """</p>
+            <p class="metric-label">DELIVERED</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Charts
     st.markdown('<div class="section-header">📈 CHARTS & VISUALIZATIONS</div>', unsafe_allow_html=True)
@@ -338,7 +395,7 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                 status_counts,
                 x='Status',
                 y='Count',
-                title='📊 Orders by Status',
+                title='📊 ORDERS BY STATUS',
                 color='Status',
                 color_discrete_sequence=px.colors.qualitative.Set3
             )
@@ -346,46 +403,45 @@ if st.session_state.df is not None and st.session_state.col_mapping:
             fig1.update_traces(
                 texttemplate='%{y}', 
                 textposition='outside',
-                textfont=dict(size=12, color='white')
+                textfont=dict(size=12, color='white', family='Orbitron')
             )
             fig1.update_layout(
                 showlegend=False, 
                 height=400,
-                uniformtext_minsize=8,
-                uniformtext_mode='hide'
+                font=dict(family='Orbitron'),
+                title_font=dict(size=16, color='#00FF88')
             )
             st.plotly_chart(fig1, use_container_width=True)
     
     with col2:
-        # Order vs Actual Delivery Bar Chart
-        if col_mapping['OrderQty'] and col_mapping['ActualDelivery']:
-            comparison_data = pd.DataFrame({
-                'Type': ['Order Quantity', 'Actual Delivery'],
-                'Value': [total_order_qty, total_actual_delivery]
-            })
-            
-            fig2 = px.bar(
-                comparison_data,
-                x='Type',
-                y='Value',
-                title='📦 Order vs Actual Delivery (Total Volume)',
-                color='Type',
-                color_discrete_sequence=['#4ECDC4', '#00FF88']
-            )
-            # Tambahkan data labels
-            fig2.update_traces(
-                texttemplate='%{y:,.0f}', 
-                textposition='outside',
-                textfont=dict(size=12, color='white')
-            )
-            fig2.update_layout(
-                showlegend=False, 
-                height=400,
-                yaxis_title='Volume'
-            )
-            st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.info("Data for Order vs Actual Delivery not available")
+        # Order vs Actual Delivery Bar Chart dengan data labels
+        comparison_data = pd.DataFrame({
+            'Type': ['ORDER QTY', 'ACTUAL DELIVERY'],
+            'Value': [total_order_qty, total_actual_delivery]
+        })
+        
+        fig2 = px.bar(
+            comparison_data,
+            x='Type',
+            y='Value',
+            title='📦 ORDER VS ACTUAL DELIVERY',
+            color='Type',
+            color_discrete_sequence=['#4ECDC4', '#00FF88']
+        )
+        # Tambahkan data labels
+        fig2.update_traces(
+            texttemplate='%{y:,.0f}', 
+            textposition='outside',
+            textfont=dict(size=12, color='white', family='Orbitron')
+        )
+        fig2.update_layout(
+            showlegend=False, 
+            height=400,
+            yaxis_title='VOLUME',
+            font=dict(family='Orbitron'),
+            title_font=dict(size=16, color='#00FF88')
+        )
+        st.plotly_chart(fig2, use_container_width=True)
     
     col1, col2 = st.columns(2)
     
@@ -400,16 +456,20 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                     daily_orders,
                     x='Date',
                     y='Orders',
-                    title='📈 Daily Order Trend',
+                    title='📈 DAILY ORDER TREND',
                     markers=True
                 )
                 # Tambahkan data labels
                 fig3.update_traces(
                     texttemplate='%{y}',
                     textposition='top center',
-                    textfont=dict(size=10, color='white')
+                    textfont=dict(size=10, color='white', family='Orbitron')
                 )
-                fig3.update_layout(height=400)
+                fig3.update_layout(
+                    height=400,
+                    font=dict(family='Orbitron'),
+                    title_font=dict(size=16, color='#00FF88')
+                )
                 st.plotly_chart(fig3, use_container_width=True)
             except:
                 st.warning("Could not create trend chart")
@@ -436,7 +496,7 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                 y='Value',
                 color='Type',
                 barmode='group',
-                title='🏭 Order Qty vs Actual Delivery by Plant',
+                title='🏭 ORDER QTY VS ACTUAL DELIVERY BY PLANT',
                 color_discrete_map={'OrderQty': '#4ECDC4', 'ActualDelivery': '#00FF88'}
             )
             
@@ -444,17 +504,17 @@ if st.session_state.df is not None and st.session_state.col_mapping:
             fig4.update_traces(
                 texttemplate='%{y:,.0f}',
                 textposition='outside',
-                textfont=dict(size=10, color='white')
+                textfont=dict(size=10, color='white', family='Orbitron')
             )
             
             fig4.update_layout(
                 height=400,
                 xaxis_tickangle=-45,
-                legend_title_text='Type'
+                legend_title_text='TYPE',
+                font=dict(family='Orbitron'),
+                title_font=dict(size=16, color='#00FF88')
             )
             st.plotly_chart(fig4, use_container_width=True)
-        else:
-            st.info("Data for Order Qty vs Actual Delivery by Plant not available")
     
     # Data Table
     st.markdown('<div class="section-header">📋 DETAILED ORDER DATA</div>', unsafe_allow_html=True)
@@ -476,33 +536,59 @@ if st.session_state.df is not None and st.session_state.col_mapping:
             file_name="filtered_orders.csv",
             mime="text/csv"
         )
-    else:
-        st.warning("No columns available for display")
 
 else:
     # Placeholder before data upload
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown(create_metric_card("TOTAL ORDERS", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("TOTAL ORDERS", "0"), unsafe_allow_html=True)
     
     with col2:
-        st.markdown(create_metric_card("TOTAL ORDER QTY", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("TOTAL QTY", "0"), unsafe_allow_html=True)
     
     with col3:
-        st.markdown(create_metric_card("STATUS KPI", "P:0 | B:0 | C:0 | D:0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
+        st.markdown(create_metric_card("ORDER QTY", "0"), unsafe_allow_html=True)
     
-    st.info("""
-    📤 **Please upload a data file to get started**
+    with col4:
+        st.markdown(create_metric_card("ACTUAL DELIVERY", "0"), unsafe_allow_html=True)
     
-    Supported formats: CSV, Excel (.xlsx, .xls)
+    # Status KPI Placeholders
+    col1, col2, col3, col4 = st.columns(4)
     
-    Your file should contain columns like:
-    - Order ID, Site No, Site Name
-    - Delivery Date, Plant Name  
-    - Order Qty, Actual Delivery, Status
-    - CreateDate
-    """)
+    with col1:
+        st.markdown("""
+        <div class="metric-card status-card-pending">
+            <p class="metric-value">0</p>
+            <p class="metric-label">PENDING</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="metric-card status-card-booking">
+            <p class="metric-value">0</p>
+            <p class="metric-label">BOOKING</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="metric-card status-card-cancel">
+            <p class="metric-value">0</p>
+            <p class="metric-label">CANCEL</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div class="metric-card status-card-delivered">
+            <p class="metric-value">0</p>
+            <p class="metric-label">DELIVERED</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.info("📤 Please upload a data file to get started")
 
 # Footer
 st.markdown("---")

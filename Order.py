@@ -69,6 +69,12 @@ st.markdown("""
         padding: 8px 16px;
         font-weight: bold;
     }
+    /* Data label styling */
+    .data-label {
+        font-size: 11px;
+        font-weight: bold;
+        fill: #FFFFFF;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -145,6 +151,7 @@ with st.sidebar:
                 'Status': find_column(df, ['Status', 'OrderStatus']),
                 'PaymentType': find_column(df, ['Payment Type', 'PaymentType', 'TipePembayaran']),
                 'OrderQty': find_column(df, ['Order Qty', 'OrderQty', 'Quantity']),
+                'ActualDelivery': find_column(df, ['Actual Delivery', 'ActualDelivery', 'DeliveredQty']),
                 'OrderID': find_column(df, ['Order ID', 'OrderID']),
                 'SiteNo': find_column(df, ['Site No', 'SiteNo']),
                 'SiteName': find_column(df, ['Site Name', 'SiteName'])
@@ -186,22 +193,45 @@ with st.sidebar:
             
             if col_mapping['PlantName']:
                 plant_options = df[col_mapping['PlantName']].unique()
+                plant_options = [str(opt) for opt in plant_options if pd.notna(opt)]
                 selected_plants = st.multiselect(
                     "🏭 Plant Name",
                     options=plant_options,
-                    default=plant_options
+                    default=plant_options,
+                    help="Select all plants or choose specific ones"
                 )
+                
+                # Add "Select All" functionality
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Select All Plants", key="select_all_plants"):
+                        selected_plants = plant_options
+                with col2:
+                    if st.button("Clear All", key="clear_all_plants"):
+                        selected_plants = []
             
             if col_mapping['Status']:
                 status_options = df[col_mapping['Status']].unique()
+                status_options = [str(opt) for opt in status_options if pd.notna(opt)]
                 selected_status = st.multiselect(
                     "📋 Status",
                     options=status_options,
-                    default=status_options
+                    default=status_options,
+                    help="Select all statuses or choose specific ones"
                 )
+                
+                # Add "Select All" functionality
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Select All Status", key="select_all_status"):
+                        selected_status = status_options
+                with col2:
+                    if st.button("Clear All", key="clear_all_status"):
+                        selected_status = []
             
             if col_mapping['PaymentType']:
                 payment_options = df[col_mapping['PaymentType']].unique()
+                payment_options = [str(opt) for opt in payment_options if pd.notna(opt)]
                 selected_payment = st.multiselect(
                     "💳 Payment Type",
                     options=payment_options,
@@ -278,8 +308,19 @@ if st.session_state.df is not None and st.session_state.col_mapping:
     else:
         cash_ratio = "N/A"
     
-    # Summary Cards
-    col1, col2, col3, col4 = st.columns(4)
+    # Calculate Order vs Actual Delivery
+    if col_mapping['OrderQty'] and col_mapping['ActualDelivery']:
+        total_order_qty = filtered_df[col_mapping['OrderQty']].sum()
+        total_actual_delivery = filtered_df[col_mapping['ActualDelivery']].sum()
+        delivery_ratio = (total_actual_delivery / total_order_qty * 100) if total_order_qty > 0 else 0
+        delivery_metric = f"{delivery_ratio:.1f}%"
+    else:
+        delivery_metric = "N/A"
+        total_order_qty = 0
+        total_actual_delivery = 0
+    
+    # Summary Cards (3 kotak saja)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown(create_metric_card("TOTAL ORDERS", total_orders, "linear-gradient(135deg, #FF6B6B 0%, #C53030 100%)"), unsafe_allow_html=True)
@@ -290,23 +331,13 @@ if st.session_state.df is not None and st.session_state.col_mapping:
     with col3:
         st.markdown(create_metric_card("CASH vs CREDIT", cash_ratio, "linear-gradient(135deg, #45B7D1 0%, #2B6CB0 100%)"), unsafe_allow_html=True)
     
-    with col4:
-        if col_mapping['Status']:
-            status_counts = filtered_df[col_mapping['Status']].value_counts()
-            status_summary = ", ".join([f"{k}: {v}" for k, v in status_counts.items()][:3])
-            if len(status_counts) > 3:
-                status_summary += "..."
-        else:
-            status_summary = "N/A"
-        st.markdown(create_metric_card("ORDERS BY STATUS", status_summary, "linear-gradient(135deg, #F9A826 0%, #D69E2E 100%)"), unsafe_allow_html=True)
-    
     # Charts
     st.markdown('<div class="section-header">📈 CHARTS & VISUALIZATIONS</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        # Status Order Bar Chart
+        # Status Order Bar Chart dengan data labels
         if col_mapping['Status']:
             status_counts = filtered_df[col_mapping['Status']].value_counts().reset_index()
             status_counts.columns = ['Status', 'Count']
@@ -318,29 +349,55 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                 color='Status',
                 color_discrete_sequence=px.colors.qualitative.Set3
             )
-            fig1.update_layout(showlegend=False, height=300)
+            # Tambahkan data labels
+            fig1.update_traces(
+                texttemplate='%{y}', 
+                textposition='outside',
+                textfont=dict(size=12, color='white')
+            )
+            fig1.update_layout(
+                showlegend=False, 
+                height=400,
+                uniformtext_minsize=8,
+                uniformtext_mode='hide'
+            )
             st.plotly_chart(fig1, use_container_width=True)
     
     with col2:
-        # Payment Type Pie Chart
-        if col_mapping['PaymentType']:
-            payment_counts = filtered_df[col_mapping['PaymentType']].value_counts().reset_index()
-            payment_counts.columns = ['PaymentType', 'Count']
-            fig2 = px.pie(
-                payment_counts,
-                values='Count',
-                names='PaymentType',
-                title='💳 Payment Type Distribution',
-                hole=0.4,
-                color_discrete_sequence=px.colors.qualitative.Set2
+        # Order vs Actual Delivery Bar Chart
+        if col_mapping['OrderQty'] and col_mapping['ActualDelivery']:
+            comparison_data = pd.DataFrame({
+                'Type': ['Order Quantity', 'Actual Delivery'],
+                'Value': [total_order_qty, total_actual_delivery]
+            })
+            
+            fig2 = px.bar(
+                comparison_data,
+                x='Type',
+                y='Value',
+                title='📦 Order vs Actual Delivery (Total Volume)',
+                color='Type',
+                color_discrete_sequence=['#4ECDC4', '#00FF88']
             )
-            fig2.update_layout(height=300)
+            # Tambahkan data labels
+            fig2.update_traces(
+                texttemplate='%{y:,.0f}', 
+                textposition='outside',
+                textfont=dict(size=12, color='white')
+            )
+            fig2.update_layout(
+                showlegend=False, 
+                height=400,
+                yaxis_title='Volume'
+            )
             st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.info("Data for Order vs Actual Delivery not available")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        # Order Trend Line Chart
+        # Order Trend Line Chart dengan data labels
         if col_mapping['CreateDate']:
             try:
                 filtered_df['CreateDate_parsed'] = pd.to_datetime(filtered_df[col_mapping['CreateDate']], errors='coerce')
@@ -353,13 +410,19 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                     title='📈 Daily Order Trend',
                     markers=True
                 )
-                fig3.update_layout(height=300)
+                # Tambahkan data labels
+                fig3.update_traces(
+                    texttemplate='%{y}',
+                    textposition='top center',
+                    textfont=dict(size=10, color='white')
+                )
+                fig3.update_layout(height=400)
                 st.plotly_chart(fig3, use_container_width=True)
             except:
                 st.warning("Could not create trend chart")
     
     with col2:
-        # Plant Performance Bar Chart
+        # Plant Performance Bar Chart dengan data labels
         if col_mapping['PlantName'] and col_mapping['OrderQty']:
             plant_performance = filtered_df.groupby(col_mapping['PlantName'])[col_mapping['OrderQty']].sum().reset_index()
             plant_performance.columns = ['Plant', 'TotalQty']
@@ -371,7 +434,17 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                 color='Plant',
                 color_discrete_sequence=px.colors.qualitative.Pastel
             )
-            fig4.update_layout(showlegend=False, height=300)
+            # Tambahkan data labels
+            fig4.update_traces(
+                texttemplate='%{y:,.0f}',
+                textposition='outside',
+                textfont=dict(size=10, color='white')
+            )
+            fig4.update_layout(
+                showlegend=False, 
+                height=400,
+                xaxis_tickangle=-45
+            )
             st.plotly_chart(fig4, use_container_width=True)
     
     # Data Table
@@ -399,7 +472,7 @@ if st.session_state.df is not None and st.session_state.col_mapping:
 
 else:
     # Placeholder before data upload
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown(create_metric_card("TOTAL ORDERS", "0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
@@ -410,9 +483,6 @@ else:
     with col3:
         st.markdown(create_metric_card("CASH vs CREDIT", "0/0", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
     
-    with col4:
-        st.markdown(create_metric_card("ORDERS BY STATUS", "N/A", "linear-gradient(135deg, #666 0%, #333 100%)"), unsafe_allow_html=True)
-    
     st.info("""
     📤 **Please upload a data file to get started**
     
@@ -421,7 +491,7 @@ else:
     Your file should contain columns like:
     - Order ID, Site No, Site Name
     - Delivery Date, Plant Name  
-    - Order Qty, Status
+    - Order Qty, Actual Delivery, Status
     - CreateDate, Payment Type
     """)
 

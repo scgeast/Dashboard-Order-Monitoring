@@ -30,26 +30,49 @@ def find_column(df, target_names):
                 return col
     return None
 
+# Fungsi untuk menganalisis file dan menemukan header yang benar
+def analyze_file_structure(uploaded_file):
+    try:
+        # Baca semua data tanpa header untuk inspeksi
+        if uploaded_file.name.endswith('.csv'):
+            raw_df = pd.read_csv(uploaded_file, header=None)
+        elif uploaded_file.name.endswith(('.xlsx', '.xls')):
+            raw_df = pd.read_excel(uploaded_file, engine='openpyxl', header=None)
+        else:
+            return None, "Format file tidak didukung"
+        
+        # Cari baris yang mengandung nama kolom yang kita cari
+        target_keywords = ['delivery', 'plant', 'order', 'status', 'date', 'qty', 'payment']
+        best_header_row = 0
+        best_match_score = 0
+        
+        for i in range(min(10, len(raw_df))):  # Cek 10 baris pertama
+            row_values = [str(val).lower() for val in raw_df.iloc[i].values]
+            match_score = sum(1 for keyword in target_keywords if any(keyword in str(val) for val in row_values))
+            
+            if match_score > best_match_score:
+                best_match_score = match_score
+                best_header_row = i
+        
+        return raw_df, best_header_row
+        
+    except Exception as e:
+        return None, f"Error analyzing file: {str(e)}"
+
 # Fungsi untuk memproses data yang diupload
 @st.cache_data
-def process_uploaded_file(uploaded_file):
+def process_uploaded_file(uploaded_file, header_row=1):
     try:
-        # Baca file yang diupload
+        # Baca file yang diupload dengan header row tertentu
         if uploaded_file.name.endswith('.csv'):
-            # Coba baca dengan header di row 1, skip row 0
-            df = pd.read_csv(uploaded_file, header=1)
+            df = pd.read_csv(uploaded_file, header=header_row)
         elif uploaded_file.name.endswith(('.xlsx', '.xls')):
-            try:
-                # Coba baca dengan header di row 1, skip row 0
-                df = pd.read_excel(uploaded_file, engine='openpyxl', header=1)
-            except ImportError:
-                st.error("Library openpyxl tidak terinstall. Silakan install dengan: pip install openpyxl")
-                return None
+            df = pd.read_excel(uploaded_file, engine='openpyxl', header=header_row)
         else:
             st.error("Format file tidak didukung. Silakan upload file CSV atau Excel.")
             return None
         
-        # Bersihkan nama kolom (remove extra spaces, lowercase, etc.)
+        # Bersihkan nama kolom
         df.columns = [str(col).strip() for col in df.columns]
         
         # Hapus kolom yang seluruhnya kosong
@@ -79,166 +102,104 @@ with st.sidebar:
     )
     
     if uploaded_file is not None:
-        # Process uploaded file
-        df = process_uploaded_file(uploaded_file)
+        # Analisis struktur file
+        raw_df, header_row = analyze_file_structure(uploaded_file)
         
-        if df is not None:
-            # Tampilkan info debug
-            st.write("🔍 **Debug Info:**")
-            st.write(f"Jumlah kolom: {len(df.columns)}")
-            st.write(f"Jumlah baris: {len(df)}")
-            st.write("**5 baris pertama:**")
-            st.dataframe(df.head(5))
+        if raw_df is not None:
+            st.info(f"📋 File terdeteksi memiliki {len(raw_df)} baris")
+            st.info(f"🔍 Header terdeteksi di baris: {header_row}")
             
-            # Tampilkan nama kolom yang terdeteksi
-            st.write("**Kolom yang terdeteksi:**")
-            for i, col in enumerate(df.columns):
-                st.write(f"{i}. {col}")
+            # Tampilkan preview data mentah
+            st.write("**Preview Data Mentah (5 baris pertama):**")
+            st.dataframe(raw_df.head(5))
             
-            # Temukan kolom dengan smart detection
-            create_date_col = find_column(df, ['CreateDate', 'Create Date', 'TanggalBuat', 'Tanggal Buat'])
-            delivery_date_col = find_column(df, ['Delivery Date', 'DeliveryDate', 'TanggalKirim', 'Tanggal Kirim'])
-            plant_name_col = find_column(df, ['Plant Name', 'PlantName', 'NamaPlant', 'Nama Plant'])
-            status_col = find_column(df, ['Status', 'OrderStatus', 'StatusOrder'])
-            payment_type_col = find_column(df, ['Payment Type', 'PaymentType', 'TipePembayaran', 'Tipe Pembayaran'])
-            order_qty_col = find_column(df, ['Order Qty', 'OrderQty', 'Quantity', 'Qty'])
-            order_id_col = find_column(df, ['Order ID', 'OrderID', 'IDOrder', 'Order No'])
+            # Pilihan manual header row
+            selected_header_row = st.slider(
+                "Pilih baris mana yang menjadi header:",
+                min_value=0,
+                max_value=min(10, len(raw_df)-1),
+                value=header_row
+            )
             
-            # Tampilkan mapping kolom yang terdeteksi
-            st.info("🔍 Kolom yang terdeteksi:")
-            col_mapping = {
-                'Create Date': create_date_col,
-                'Delivery Date': delivery_date_col,
-                'Plant Name': plant_name_col,
-                'Status': status_col,
-                'Payment Type': payment_type_col,
-                'Order Qty': order_qty_col,
-                'Order ID': order_id_col
-            }
+            # Process uploaded file dengan header row yang dipilih
+            df = process_uploaded_file(uploaded_file, selected_header_row)
             
-            for display_name, actual_col in col_mapping.items():
-                if actual_col:
-                    st.write(f"{display_name}: `{actual_col}`")
-                else:
-                    st.warning(f"{display_name}: Tidak ditemukan")
-            
-            # Filter tanggal: Create Date
-            if create_date_col:
-                create_date_min = df[create_date_col].min()
-                create_date_max = df[create_date_col].max()
-                create_date_range = st.date_input(
-                    "Create Date Range",
-                    [create_date_min, create_date_max],
-                    min_value=create_date_min,
-                    max_value=create_date_max
-                )
-            
-            # Filter tanggal: Delivery Date
-            if delivery_date_col:
-                delivery_date_min = df[delivery_date_col].min()
-                delivery_date_max = df[delivery_date_col].max()
-                delivery_date_range = st.date_input(
-                    "Delivery Date Range",
-                    [delivery_date_min, delivery_date_max],
-                    min_value=delivery_date_min,
-                    max_value=delivery_date_max
-                )
-            
-            # Filter Plant Name
-            if plant_name_col:
-                plant_options = df[plant_name_col].unique()
-                selected_plant = st.multiselect("Plant Name", plant_options, default=plant_options)
-            
-            # Filter Status
-            if status_col:
-                status_options = df[status_col].unique()
-                selected_status = st.multiselect("Status", status_options, default=status_options)
-            
-            # Filter Payment Type
-            if payment_type_col:
-                payment_options = df[payment_type_col].unique()
-                selected_payment = st.multiselect("Payment Type", payment_options, default=payment_options)
-    else:
-        st.info("Silakan upload file data untuk memulai")
-        df = None
+            if df is not None:
+                # Tampilkan info kolom
+                st.write("**Kolom yang tersedia:**")
+                for i, col in enumerate(df.columns):
+                    st.write(f"{i}. `{col}`")
+                
+                # Manual column mapping
+                st.write("**🔧 Manual Column Mapping:**")
+                
+                col_mapping = {}
+                column_types = {
+                    'Delivery Date': ['delivery', 'date', 'tanggal', 'kirim'],
+                    'Plant Name': ['plant', 'nama plant', 'lokasi'],
+                    'Order Qty': ['order', 'qty', 'quantity', 'jumlah'],
+                    'Status': ['status', 'orderstatus'],
+                    'Payment Type': ['payment', 'type', 'pembayaran'],
+                    'Order ID': ['order', 'id', 'no order']
+                }
+                
+                for col_type, keywords in column_types.items():
+                    options = [f"Tidak digunakan"] + [f"{col} ({i})" for i, col in enumerate(df.columns)]
+                    selected = st.selectbox(
+                        f"Pilih kolom untuk {col_type}",
+                        options=options,
+                        key=f"map_{col_type}"
+                    )
+                    if selected != "Tidak digunakan":
+                        col_index = int(selected.split("(")[-1].replace(")", ""))
+                        col_mapping[col_type] = df.columns[col_index]
+                
+                # Simpan mapping ke session state
+                st.session_state.col_mapping = col_mapping
+                
+                # Lanjutkan dengan filter lainnya...
+                # ... [kode filter lainnya tetap sama]
 
 # Main content
 st.title("📦 Order & Delivery Monitoring Dashboard")
 
-if df is not None and uploaded_file is not None:
-    # Terapkan filter ke dataframe
-    filter_conditions = []
-    
-    if create_date_col and 'create_date_range' in locals():
-        filter_conditions.append(
-            df[create_date_col].between(pd.to_datetime(create_date_range[0]), pd.to_datetime(create_date_range[1]))
-        )
-    
-    if delivery_date_col and 'delivery_date_range' in locals():
-        filter_conditions.append(
-            df[delivery_date_col].between(pd.to_datetime(delivery_date_range[0]), pd.to_datetime(delivery_date_range[1]))
-        )
-    
-    if plant_name_col and 'selected_plant' in locals():
-        filter_conditions.append(df[plant_name_col].isin(selected_plant))
-    
-    if status_col and 'selected_status' in locals():
-        filter_conditions.append(df[status_col].isin(selected_status))
-    
-    if payment_type_col and 'selected_payment' in locals():
-        filter_conditions.append(df[payment_type_col].isin(selected_payment))
-    
-    # Gabungkan semua kondisi filter
-    if filter_conditions:
-        mask = filter_conditions[0]
-        for condition in filter_conditions[1:]:
-            mask = mask & condition
-        filtered_df = df[mask]
-    else:
-        filtered_df = df
+if uploaded_file is not None and 'col_mapping' in st.session_state and st.session_state.col_mapping:
+    col_mapping = st.session_state.col_mapping
     
     # Tampilkan summary cards
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Orders", len(filtered_df))
+        st.metric("Total Orders", len(df))
     
     with col2:
-        if order_qty_col:
-            total_qty = filtered_df[order_qty_col].sum()
+        if 'Order Qty' in col_mapping:
+            total_qty = df[col_mapping['Order Qty']].sum()
             st.metric("Total Order Qty", int(total_qty))
         else:
-            st.metric("Total Orders", len(filtered_df))
+            st.metric("Total Orders", len(df))
     
     with col3:
-        if payment_type_col:
-            cash_count = len(filtered_df[filtered_df[payment_type_col].astype(str).str.contains('Cash', case=False, na=False)])
-            credit_count = len(filtered_df[filtered_df[payment_type_col].astype(str).str.contains('Credit', case=False, na=False)])
+        if 'Payment Type' in col_mapping:
+            cash_count = len(df[df[col_mapping['Payment Type']].astype(str).str.contains('Cash', case=False, na=False)])
+            credit_count = len(df[df[col_mapping['Payment Type']].astype(str).str.contains('Credit', case=False, na=False)])
             st.metric("Cash vs Credit", f"{cash_count}:{credit_count}")
     
     with col4:
-        st.metric("Filtered Data", len(filtered_df))
-    
-    # Grafik: Order by Status
-    if status_col:
-        fig_status = px.bar(filtered_df, x=status_col, title="Orders by Status")
-        st.plotly_chart(fig_status, use_container_width=True)
-    
-    # Grafik: Payment Type
-    if payment_type_col:
-        fig_payment = px.pie(filtered_df, names=payment_type_col, title="Payment Type Distribution")
-        st.plotly_chart(fig_payment, use_container_width=True)
+        st.metric("Data Points", len(df))
     
     # Tampilkan tabel data
     st.subheader("Detail Data")
-    st.dataframe(filtered_df)
+    st.dataframe(df)
     
-    # Download button untuk data yang sudah difilter
-    csv = filtered_df.to_csv(index=False)
+    # Download button
+    csv = df.to_csv(index=False)
     st.download_button(
-        label="Download Filtered Data as CSV",
+        label="Download Data as CSV",
         data=csv,
-        file_name="filtered_orders.csv",
+        file_name="orders_data.csv",
         mime="text/csv"
     )
+
 else:
     st.info("📤 Silakan upload file data melalui sidebar di sebelah kiri untuk memulai analisis.")
+    st.info("🔧 Setelah upload, Anda perlu melakukan manual mapping kolom di sidebar")

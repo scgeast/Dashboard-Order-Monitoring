@@ -2,22 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-# Ganti kode plotly dengan streamlit native charts
-try:
-    import plotly.express as px
-    USE_PLOTLY = True
-except ImportError:
-    USE_PLOTLY = False
-    import matplotlib.pyplot as plt
-
-# Dalam kode visualisasi:
-if USE_PLOTLY:
-    fig_status = px.bar(filtered_df, x="Status", title="Orders by Status")
-    st.plotly_chart(fig_status, use_container_width=True)
-else:
-    # Fallback ke streamlit native bar chart
-    st.bar_chart(filtered_df["Status"].value_counts())
-from datetime import datetime
+import plotly.express as px
 
 # Konfigurasi halaman
 st.set_page_config(

@@ -25,43 +25,36 @@ st.markdown("""
     }
     .metric-card {
         background: linear-gradient(135deg, #1E3A8A 0%, #0369A1 100%);
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         text-align: center;
-        margin: 5px;
+        margin: 3px;
         border: 1px solid #00FF88;
+        height: 90px;
     }
     .metric-value {
-        font-size: 2.5em;
+        font-size: 1.8em;
         font-weight: bold;
         color: #00FF88;
         margin: 0;
         font-family: 'Orbitron', monospace;
-        text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        line-height: 1.2;
     }
     .metric-label {
-        font-size: 1em;
+        font-size: 0.8em;
         color: rgba(255, 255, 255, 0.8);
-        margin: 5px 0 0 0;
+        margin: 2px 0 0 0;
         font-family: 'Orbitron', monospace;
-    }
-    .section-header {
-        font-size: 1.4em;
-        font-weight: bold;
-        color: #00FF88;
-        margin: 20px 0 10px 0;
-        padding: 8px 0;
-        border-bottom: 2px solid #00FF88;
-        font-family: 'Orbitron', monospace;
-        text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
     }
     .stPlotlyChart {
-        border-radius: 15px;
+        border-radius: 12px;
         background: linear-gradient(135deg, #1E2130 0%, #2D3250 100%);
-        padding: 15px;
+        padding: 12px;
         border: 1px solid #00FF88;
-        box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+        box-shadow: 0 0 12px rgba(0, 255, 136, 0.2);
+        height: 320px;
     }
     .sidebar .sidebar-content {
         background: linear-gradient(180deg, #1E3A8A 0%, #0F172A 100%);
@@ -71,32 +64,52 @@ st.markdown("""
         border-radius: 10px;
         background: linear-gradient(135deg, #1E2130 0%, #2D3250 100%);
         border: 1px solid #00FF88;
+        height: 300px;
     }
     .stButton>button {
         background: linear-gradient(135deg, #00FF88 0%, #00CC66 100%);
         color: #000;
         border: none;
-        border-radius: 8px;
-        padding: 8px 16px;
+        border-radius: 6px;
+        padding: 6px 12px;
         font-weight: bold;
         font-family: 'Orbitron', monospace;
+        font-size: 0.9em;
     }
     /* Status KPI Cards */
     .status-card-pending {
         background: linear-gradient(135deg, #FF6B6B 0%, #C53030 100%) !important;
         border: 1px solid #FF4444 !important;
+        height: 90px;
     }
     .status-card-booking {
         background: linear-gradient(135deg, #F9A826 0%, #D69E2E 100%) !important;
         border: 1px solid #FFB74D !important;
+        height: 90px;
     }
     .status-card-cancel {
         background: linear-gradient(135deg, #A0AEC0 0%, #718096 100%) !important;
         border: 1px solid #CBD5E0 !important;
+        height: 90px;
     }
     .status-card-delivered {
         background: linear-gradient(135deg, #68D391 0%, #38A169 100%) !important;
         border: 1px solid #48BB78 !important;
+        height: 90px;
+    }
+    /* Compact layout adjustments */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    .stApp {
+        margin-top: -50px;
+    }
+    /* Smaller chart titles */
+    .chart-title {
+        font-size: 1.1em !important;
+        color: #00FF88 !important;
+        margin-bottom: 5px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -151,8 +164,8 @@ if 'col_mapping' not in st.session_state:
 # Sidebar
 with st.sidebar:
     st.markdown("""
-    <div style='text-align: center; padding: 15px 0;'>
-        <h2 style='color: #00FF88; margin: 0;'>📊 FILTERS</h2>
+    <div style='text-align: center; padding: 10px 0;'>
+        <h2 style='color: #00FF88; margin: 0; font-size: 1.2em;'>📊 FILTERS</h2>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
@@ -259,17 +272,12 @@ with st.sidebar:
                 'selected_status': selected_status if 'selected_status' in locals() else None
             }
 
-# Main Content
-col1, col2 = st.columns([0.97, 0.03])
-with col1:
-    st.markdown("""
-    <div style='text-align: center; padding: 15px 0;'>
-        <h1 style='color: #00FF88; font-size: 2.2em; margin: 0;'>📊 Order & Delivery Monitoring Dashboard</h1>
-    </div>
-    """, unsafe_allow_html=True)
-with col2:
-    if st.button("☰"):
-        st.session_state.sidebar_expanded = not st.session_state.get('sidebar_expanded', True)
+# Main Content - Compact Header
+st.markdown("""
+<div style='text-align: center; padding: 5px 0;'>
+    <h1 style='color: #00FF88; font-size: 1.8em; margin: 0;'>📊 ORDER & DELIVERY DASHBOARD</h1>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -331,7 +339,7 @@ if st.session_state.df is not None and st.session_state.col_mapping:
         total_actual_delivery = 0
         delivery_ratio = 0
     
-    # Summary Cards - 7 cards total
+    # Summary Cards - 8 cards total (2 rows of 4)
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -350,40 +358,38 @@ if st.session_state.df is not None and st.session_state.col_mapping:
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card status-card-pending">
-            <p class="metric-value">""" + str(pending_count) + """</p>
+            <p class="metric-value">{pending_count}</p>
             <p class="metric-label">PENDING</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card status-card-booking">
-            <p class="metric-value">""" + str(on_booking_count) + """</p>
+            <p class="metric-value">{on_booking_count}</p>
             <p class="metric-label">BOOKING</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card status-card-cancel">
-            <p class="metric-value">""" + str(canceled_count) + """</p>
+            <p class="metric-value">{canceled_count}</p>
             <p class="metric-label">CANCEL</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col4:
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card status-card-delivered">
-            <p class="metric-value">""" + str(delivered_count) + """</p>
+            <p class="metric-value">{delivered_count}</p>
             <p class="metric-label">DELIVERED</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # Charts
-    st.markdown('<div class="section-header">📈 CHARTS & VISUALIZATIONS</div>', unsafe_allow_html=True)
-    
+    # Charts - langsung tampilkan tanpa section header
     col1, col2 = st.columns(2)
     
     with col1:
@@ -403,15 +409,16 @@ if st.session_state.df is not None and st.session_state.col_mapping:
             fig1.update_traces(
                 texttemplate='%{y}', 
                 textposition='outside',
-                textfont=dict(size=12, color='white', family='Orbitron')
+                textfont=dict(size=11, color='white', family='Orbitron')
             )
             fig1.update_layout(
                 showlegend=False, 
-                height=400,
-                font=dict(family='Orbitron'),
-                title_font=dict(size=16, color='#00FF88')
+                height=300,
+                font=dict(family='Orbitron', size=10),
+                title_font=dict(size=14, color='#00FF88'),
+                margin=dict(t=40, b=20, l=20, r=20)
             )
-            st.plotly_chart(fig1, use_container_width=True)
+            st.plotly_chart(fig1, use_container_width=True, use_container_height=True)
     
     with col2:
         # Order vs Actual Delivery Bar Chart dengan data labels
@@ -432,16 +439,17 @@ if st.session_state.df is not None and st.session_state.col_mapping:
         fig2.update_traces(
             texttemplate='%{y:,.0f}', 
             textposition='outside',
-            textfont=dict(size=12, color='white', family='Orbitron')
+            textfont=dict(size=11, color='white', family='Orbitron')
         )
         fig2.update_layout(
             showlegend=False, 
-            height=400,
+            height=300,
             yaxis_title='VOLUME',
-            font=dict(family='Orbitron'),
-            title_font=dict(size=16, color='#00FF88')
+            font=dict(family='Orbitron', size=10),
+            title_font=dict(size=14, color='#00FF88'),
+            margin=dict(t=40, b=20, l=20, r=20)
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, use_container_height=True)
     
     col1, col2 = st.columns(2)
     
@@ -463,16 +471,17 @@ if st.session_state.df is not None and st.session_state.col_mapping:
                 fig3.update_traces(
                     texttemplate='%{y}',
                     textposition='top center',
-                    textfont=dict(size=10, color='white', family='Orbitron')
+                    textfont=dict(size=9, color='white', family='Orbitron')
                 )
                 fig3.update_layout(
-                    height=400,
-                    font=dict(family='Orbitron'),
-                    title_font=dict(size=16, color='#00FF88')
+                    height=300,
+                    font=dict(family='Orbitron', size=10),
+                    title_font=dict(size=14, color='#00FF88'),
+                    margin=dict(t=40, b=20, l=20, r=20)
                 )
-                st.plotly_chart(fig3, use_container_width=True)
+                st.plotly_chart(fig3, use_container_width=True, use_container_height=True)
             except:
-                st.warning("Could not create trend chart")
+                pass
     
     with col2:
         # Order Qty vs Actual Delivery by Plant (Grouped Bar Chart)
@@ -504,20 +513,21 @@ if st.session_state.df is not None and st.session_state.col_mapping:
             fig4.update_traces(
                 texttemplate='%{y:,.0f}',
                 textposition='outside',
-                textfont=dict(size=10, color='white', family='Orbitron')
+                textfont=dict(size=9, color='white', family='Orbitron')
             )
             
             fig4.update_layout(
-                height=400,
+                height=300,
                 xaxis_tickangle=-45,
                 legend_title_text='TYPE',
-                font=dict(family='Orbitron'),
-                title_font=dict(size=16, color='#00FF88')
+                font=dict(family='Orbitron', size=10),
+                title_font=dict(size=14, color='#00FF88'),
+                margin=dict(t=40, b=20, l=20, r=20)
             )
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, use_container_width=True, use_container_height=True)
     
     # Data Table
-    st.markdown('<div class="section-header">📋 DETAILED ORDER DATA</div>', unsafe_allow_html=True)
+    st.markdown('<div style="color: #00FF88; font-size: 1.2em; margin: 10px 0;">📋 DETAILED ORDER DATA</div>', unsafe_allow_html=True)
     
     # Select columns to display
     display_columns = []
@@ -526,7 +536,7 @@ if st.session_state.df is not None and st.session_state.col_mapping:
             display_columns.append(col_mapping[col_key])
     
     if display_columns:
-        st.dataframe(filtered_df[display_columns], use_container_width=True, height=400)
+        st.dataframe(filtered_df[display_columns], use_container_width=True, height=250)
         
         # Download button
         csv = filtered_df[display_columns].to_csv(index=False)
@@ -593,8 +603,8 @@ else:
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666; padding: 15px 0;'>
-    <p>🚀 Order & Delivery Monitoring System • Real-time Dashboard • Powered by Streamlit</p>
-    <p>📅 Last Updated: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
+<div style='text-align: center; color: #666; padding: 10px 0; font-size: 0.8em;'>
+    <p>🚀 Order & Delivery Monitoring System • Powered by Streamlit</p>
+    <p>📅 """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
 </div>
 """, unsafe_allow_html=True)
